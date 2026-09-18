@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <!-- Restrict scaling so the 1600px canvas doesn't force a zoomed-out view -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TIARA '26 Teaser</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400&display=swap" rel="stylesheet">
+    <style>
+        @font-face {
+            font-family: 'Tiara';
+            src: url('tiara.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Lock the viewport width/height to prevent scrolling/zooming */
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* dvh (dynamic viewport height) handles mobile browser UI better */
+            height: 100dvh;
+            position: relative;
+        }
+
+        /* Fog Canvas — Adjusted for fluid width while maintaining the 1600px illusion */
+        #myCanvas {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            min-width: 800px;
+            /* Prevents the fog from squishing too much on thin phones */
+            height: 35vh;
+            /* Scales fog height dynamically */
+            max-height: 300px;
+            object-fit: cover;
+            pointer-events: none;
+            z-index: 5;
+            mix-blend-mode: screen;
+        }
+
+        /* Centered content container */
+        .container {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            padding: 0 1rem;
+            /* Added padding to prevent touching edges */
+        }
+
+        /* Coming Soon glitch text */
+        .glitch-text {
+            font-weight: 900;
+            display: inline-block;
+        }
+
+        /* TIARA '26 — Scaled up minimum size slightly for mobile */
+        h1.target-tiara {
+            font-family: 'Tiara', sans-serif;
+            font-size: clamp(3.2rem, 12vw, 9rem);
+            /* Increased minimum from 2.5rem */
+            line-height: 0.9;
+            margin: 0;
+            padding: 0;
+            white-space: nowrap;
+            display: inline-block;
+            transform: translateX(clamp(-25px, -1vw, 0px));
+            /* Softened transform */
+            text-align: center;
+        }
+
+        .text-white {
+            color: #ffffff;
+        }
+
+        /* Coming Soon — Scaled up minimum size slightly */
+        h2.target-coming-soon {
+            font-family: 'Montserrat', sans-serif;
+            font-size: clamp(0.8rem, 2.5vw, 1.35rem);
+            /* Increased minimum */
+            font-weight: 300;
+            text-transform: uppercase;
+            letter-spacing: clamp(4px, 2vw, 18px);
+            color: rgba(255, 255, 255, 0.88);
+            margin-top: clamp(12px, 2vh, 22px);
+            padding: 0;
+            display: inline-block;
+            text-align: center;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           DRIFT WALL — scrolling image tile background
+           ═══════════════════════════════════════════════════ */
+        .drift-wall {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            perspective: 1200px;
+        }
+
+        .drift-plane {
+            display: flex;
+            gap: 18px;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            transform: rotateX(16deg) rotateY(-14deg);
+            transform-style: preserve-3d;
+            transform-origin: 50% 50%;
+        }
+
+        .drift-column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex-shrink: 0;
+            width: 340px;
+        }
+
+        .drift-tile {
+            flex-shrink: 0;
+            width: 340px;
+            height: 172px;
+            border-radius: 14px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .drift-tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            /* Push images toward red/crimson palette */
+            filter: saturate(1.4) hue-rotate(-10deg) brightness(0.7);
+        }
+
+        /* Dark red tinted overlay on each tile */
+        .drift-tile::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: rgba(120, 8, 8, 0.35);
+            pointer-events: none;
+        }
+
+        /* Fade-out mask: top edge fades in */
+        .drift-wall::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                    rgba(0, 0, 0, 1) 0%,
+                    rgba(0, 0, 0, 0.7) 10%,
+                    rgba(0, 0, 0, 0.2) 25%,
+                    rgba(0, 0, 0, 0) 40%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Fade-out mask: bottom edge fades to black (before fog) */
+        .drift-wall::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                    rgba(0, 0, 0, 0) 0%,
+                    rgba(0, 0, 0, 0.15) 30%,
+                    rgba(0, 0, 0, 0.5) 55%,
+                    rgba(0, 0, 0, 0.85) 75%,
+                    rgba(0, 0, 0, 1) 90%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Smaller drift tiles on phones + full vignette fade on all edges */
+        @media (max-width: 480px) {
+            .drift-column { width: 140px; gap: 12px; }
+            .drift-tile   { width: 140px; height: 95px; border-radius: 10px; }
+            .drift-plane  { gap: 12px; }
+
+            /* Left/right fade on phones */
+            .drift-wall::before {
+                background:
+                    linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 30%),
+                    linear-gradient(to right, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 82%, rgba(0,0,0,0.9) 100%);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- DriftWall Background -->
+    <div class="drift-wall" id="driftWall">
+        <div class="drift-plane" id="driftPlane"></div>
+    </div>
+
+    <!-- Fog Canvas -->
+    <canvas id="myCanvas" width="1600" height="250"></canvas>
+
+    <div class="container">
+        <!-- Targets for the VFX-JS Engine (Dead Centered) -->
+        <h1 class="target-tiara">
+            <span class="text-white">Ti</span><span style="color: #EB1C2C;">ar</span><span class="text-white">a
+            </span><span style="color: #EB1C2C;">&apos;</span><span class="text-white">26</span>
+        </h1>
+        <h2 class="glitch-text target-coming-soon">Coming Soon</h2>
+    </div>
+
+    <!-- Fog Particle Script Tinted with #eb1c2c -->
+    <script>
+        const canvas = document.getElementById("myCanvas");
+        const ctx = canvas.getContext("2d");
+
+        const canvasWidth = 1600;
+        const canvasHeight = 250;
+
+        let pCount = 0;
+        let pCollection = [];
+
+        const puffs = 1;
+        const particlesPerPuff = 80;
+        const img = 'smoke_eb1c2c.png';
+
+        const smokeImage = new Image();
+        smokeImage.src = img;
+
+        function randBetween(n1, n2) {
+            return (Math.random() * (n2 - n1)) + n1;
+        }
+
+        function addNewParticle(delay) {
+            const p = {};
+            p.top = canvasHeight - 20;
+            p.left = randBetween(-150, canvasWidth - 50);
+
+            p.start = new Date().getTime() + delay;
+            p.life = randBetween(6500, 9500);
+            p.speedUp = randBetween(18, 38);
+            p.speedRight = randBetween(-8, 18);
+
+            p.rot = randBetween(-0.5, 0.5);
+            p.startOpacity = randBetween(0.25, 0.45);
+            p.newTop = p.top;
+            p.newLeft = p.left;
+            p.size = randBetween(200, 350);
+            p.growth = randBetween(15, 30);
+
+            pCollection[pCount] = p;
+            pCount++;
+        }
+
+        for (let i1 = 0; i1 < puffs; i1++) {
+            const puffDelay = i1 * 1500;
+            for (let i2 = 0; i2 < particlesPerPuff; i2++) {
+                addNewParticle((i2 * 80) + puffDelay);
+            }
+        }
+
+        function draw(startT) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const now = new Date().getTime();
+
+            for (let i = 0; i < pCount; i++) {
+                const p = pCollection[i];
+                let td = now - p.start;
+                let frac = td / p.life;
+
+                // Continuously recycle particles for infinite natural fog
+                if (td > p.life) {
+                    p.start = now;
+                    p.top = canvasHeight - randBetween(0, 40);
+                    p.left = randBetween(-150, canvasWidth - 50);
+                    td = 0;
+                    frac = 0;
+                }
+
+                if (td > 0) {
+                    const newTop = p.top - (p.speedUp * (td / 1000));
+                    const newLeft = p.left + (p.speedRight * (td / 1000));
+                    const newOpacity = Math.max(p.startOpacity * Math.sin(frac * Math.PI), 0);
+                    const newSize = p.size + (p.growth * (td / 1000));
+                    p.newTop = newTop;
+                    p.newLeft = newLeft;
+
+                    if (smokeImage.complete && newOpacity > 0.005) {
+                        ctx.globalAlpha = newOpacity;
+                        ctx.drawImage(smokeImage, newLeft, newTop, newSize, newSize);
+                    }
+                }
+            }
+
+            requestAnimationFrame(function () {
+                draw(startT);
+            });
+        }
+
+        smokeImage.onload = function () {
+            draw(new Date().getTime());
+        };
+        if (smokeImage.complete) {
+            draw(new Date().getTime());
+        }
+    </script>
+
+    <!-- DriftWall Animation Engine -->
+    <script>
+        (function () {
+            const ITEMS = [
+                { image: 'https://images.unsplash.com/photo-1517483000871-1dbf64a6e1c6?w=600&h=400&fit=crop', title: 'Red Smoke' },
+                { image: 'https://images.unsplash.com/photo-1557672172-298e090bd0f1?w=600&h=400&fit=crop', title: 'Red Abstract' },
+                { image: 'https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=600&h=400&fit=crop', title: 'Sunset Fire' },
+                { image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0484?w=600&h=400&fit=crop', title: 'Red Neon' },
+                { image: 'https://images.unsplash.com/photo-1518791841217-8f162f1e1131?w=600&h=400&fit=crop', title: 'Dark Glow' },
+                { image: 'https://images.unsplash.com/photo-1604076913837-52ab5f6e5cc4?w=600&h=400&fit=crop', title: 'Flames' },
+                { image: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=600&h=400&fit=crop', title: 'Night Mountain' },
+                { image: 'https://images.unsplash.com/photo-1504608524841-42fe6f032b4b?w=600&h=400&fit=crop', title: 'Dark Sky' },
+                { image: 'https://images.unsplash.com/photo-1542332213-31f87348057f?w=600&h=400&fit=crop', title: 'Red Light' },
+                { image: 'https://images.unsplash.com/photo-1494891848038-7bd202a2afeb?w=600&h=400&fit=crop', title: 'Dark City' },
+                { image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=600&h=400&fit=crop', title: 'Aurora' },
+                { image: 'https://images.unsplash.com/photo-1507400492013-162706c8c05e?w=600&h=400&fit=crop', title: 'Lava' },
+                { image: 'https://images.unsplash.com/photo-1534796636912-3b95b3ab5986?w=600&h=400&fit=crop', title: 'Dark Clouds' },
+                { image: 'https://images.unsplash.com/photo-1470813740244-df37b8c1edcb?w=600&h=400&fit=crop', title: 'Night Stars' },
+                { image: 'https://images.unsplash.com/photo-1516410529446-2c777cb7366d?w=600&h=400&fit=crop', title: 'Fire Sparks' },
+            ];
+
+            const COLUMNS = 7;
+            const TILE_H = 172;
+            const GAP = 20;
+            const SPEED = 42;     // px per second
+            const VARIANCE = 0.45;
+
+            const plane = document.getElementById('driftPlane');
+
+            // Distribute items round-robin into columns
+            const colData = Array.from({ length: COLUMNS }, () => []);
+            ITEMS.forEach((item, i) => colData[i % COLUMNS].push(item));
+
+            // Per-column speed factor (golden-ratio-based pseudo-randomness)
+            function colFactor(index) {
+                const pseudo = ((index * 0.6180339887 + 0.35) % 1) * 2 - 1;
+                return 1 + VARIANCE * pseudo;
+            }
+
+            // Build DOM columns
+            const columns = [];
+            colData.forEach((items, ci) => {
+                const col = document.createElement('div');
+                col.className = 'drift-column';
+
+                // Height of one complete set of tiles for this column
+                const setHeight = items.length * (TILE_H + GAP);
+                // Need enough copies to cover viewport + one extra set for seamless wrap
+                const copies = Math.max(4, Math.ceil((window.innerHeight * 3) / setHeight) + 2);
+
+                for (let c = 0; c < copies; c++) {
+                    items.forEach(item => {
+                        const tile = document.createElement('div');
+                        tile.className = 'drift-tile';
+                        const img = document.createElement('img');
+                        img.src = item.image;
+                        img.alt = item.title;
+                        img.loading = 'lazy';
+                        tile.appendChild(img);
+                        col.appendChild(tile);
+                    });
+                }
+
+                plane.appendChild(col);
+
+                const dir = ci % 2 === 0 ? 1 : -1;  // alternate up/down
+                const vel = SPEED * colFactor(ci) * dir;
+
+                // Wrap at exactly one set of tiles — so duplicate tiles
+                // slide in pixel-perfectly with no visible jump
+                // Start offset above the screen so tiles fill viewport immediately
+                const startOffset = -(window.innerHeight * 0.8);
+                columns.push({ el: col, vel, wrapH: setHeight, offset: startOffset });
+            });
+
+            // Animation loop — constant smooth scroll
+            let lastTs = null;
+            function tick(ts) {
+                if (!lastTs) lastTs = ts;
+                const dt = (ts - lastTs) / 1000;
+                lastTs = ts;
+
+                columns.forEach(c => {
+                    c.offset += c.vel * dt;
+                    // Modulo wrap at one tile-set height for seamless looping
+                    if (c.offset > c.wrapH) c.offset -= c.wrapH;
+                    if (c.offset < -c.wrapH) c.offset += c.wrapH;
+                    c.el.style.transform = `translateY(${-c.offset}px)`;
+                });
+
+                requestAnimationFrame(tick);
+            }
+            requestAnimationFrame(tick);
+        })();
+    </script>
+
+    <!-- Script initialization module -->
+    <script type="module">
+        import { VFX } from "https://esm.sh/@vfx-js/core";
+
+        // Initialize VFX pipeline engine manager
+        const vfx = new VFX();
+
+        // Apply glitch shader ONLY to Coming Soon — TIARA '26 uses clean Tiara font
+        const comingSoonText = document.querySelector('.target-coming-soon');
+
+        const applyGlitch = (el, overflowAmount = 100) => {
+            if (!el) return;
+            if (typeof vfx.add === 'function') {
+                vfx.add(el, {
+                    shader: 'glitch',
+                    overflow: overflowAmount
+                });
+            } else if (typeof vfx.addHTML === 'function') {
+                vfx.addHTML(el, {
+                    shader: 'glitch',
+                    release: 10
+                });
+            }
+        };
+
+        document.fonts.ready.then(() => {
+            applyGlitch(comingSoonText, 80);
+        });
+    </script>
+</body>
+
+</html>

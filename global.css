@@ -1,0 +1,111 @@
+/* ==========================================================================
+   1. The Abyssal Matrix (Background Backdrop Context)
+   ========================================================================== */
+.scene-viewport {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background-color: #030001;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ==========================================================================
+   2. The Crimson Nexus (Neon Ring Element)
+   ========================================================================== */
+.crimson-nexus-ring {
+    position: absolute;
+    width: min(50vw, 450px);
+    height: min(50vw, 450px);
+    border: 4px solid #ff1a35;
+    border-radius: 50%;
+    z-index: 5;
+    
+    /* Layered glow mapping for realistic bloom illumination */
+    box-shadow: 
+        0 0 15px #ff001e,
+        0 0 35px rgba(255, 0, 30, 0.6),
+        inset 0 0 20px #ff001e,
+        inset 0 0 40px rgba(255, 0, 30, 0.4);
+        
+    /* Subtle breathing animation to mimic plasma stability */
+    animation: portalPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes portalPulse {
+    0% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    100% {
+        transform: scale(1.015);
+        filter: brightness(1.2);
+    }
+}
+
+/* ==========================================================================
+   3. HUD Telemetry Embellishments (Corner UI Layers)
+   ========================================================================== */
+.hud-telemetry-panel {
+    position: absolute;
+    z-index: 12;
+    color: rgba(255, 42, 60, 0.75);
+    font-family: monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+}
+
+.hud-top-right {
+    top: 40px;
+    right: 50px;
+    border-top: 1px solid rgba(255, 42, 60, 0.4);
+    padding-top: 5px;
+    width: 80px;
+    text-align: right;
+}
+
+.hud-top-right::after {
+    content: "•••";
+    color: #ff2a3b;
+    display: block;
+    font-size: 14px;
+    letter-spacing: 1px;
+}
+
+.hud-center-left {
+    left: 40px;
+    top: 35%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.hud-dot-indicator {
+    width: 6px;
+    height: 6px;
+    background-color: transparent;
+    border: 1px solid #ff2a3b;
+    border-radius: 50%;
+}
+
+.hud-dot-indicator.active {
+    background-color: #ff2a3b;
+    box-shadow: 0 0 8px #ff2a3b;
+}
+
+/* ==========================================================================
+   4. The Matrix Core Container Reflection (Pseudo Floor Context)
+   ========================================================================== */
+.liquid-floor-reflection {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 35%;
+    background: linear-gradient(to bottom, rgba(3,0,1,0.2) 0%, #030001 100%);
+    backdrop-filter: blur(2px);
+    border-top: 1px solid rgba(255, 42, 60, 0.15);
+    z-index: 8;
+}
