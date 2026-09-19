@@ -3,12 +3,16 @@
 
 <head>
     <meta charset="UTF-8">
-    <!-- Restrict scaling so the 1600px canvas doesn't force a zoomed-out view -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>TIARA '26 Teaser</title>
+
+    <!-- Preconnect & Google Fonts (Goldman, Montserrat, Cinzel for Tiara fallback) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;400&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Goldman:wght@400;700&family=Montserrat:wght@300;400;600;800&display=swap"
+        rel="stylesheet">
+
     <style>
         @font-face {
             font-family: 'Tiara';
@@ -22,48 +26,161 @@
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        /* Lock the viewport width/height to prevent scrolling/zooming */
+        /* Prevent unwanted scrollbars and force full dynamic viewport height */
         html,
         body {
             width: 100%;
             height: 100%;
             overflow: hidden;
+            background-color: #050102;
+            color: #ffffff;
+            font-family: 'Montserrat', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
 
         body {
-            background: #000;
-            color: #fff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* dvh (dynamic viewport height) handles mobile browser UI better */
             height: 100dvh;
             position: relative;
+            user-select: none;
         }
 
-        /* Fog Canvas — Adjusted for fluid width while maintaining the 1600px illusion */
+        /* Dynamic Root variables for dynamic calculation in JS */
+        :root {
+            --tile-w: 300px;
+            --tile-h: 152px;
+            --tile-gap: 16px;
+            --drift-rotate-x: 14deg;
+            --drift-rotate-y: -12deg;
+        }
+
+        /* ═══════════════════════════════════════════════════
+           DRIFT WALL — Responsive 3D Tile Background
+           ═══════════════════════════════════════════════════ */
+        .drift-wall {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            perspective: 1000px;
+            pointer-events: none;
+        }
+
+        .drift-plane {
+            display: flex;
+            gap: var(--tile-gap);
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            transform: rotateX(var(--drift-rotate-x)) rotateY(var(--drift-rotate-y));
+            transform-style: preserve-3d;
+            transform-origin: 50% 50%;
+            will-change: transform;
+        }
+
+        .drift-column {
+            display: flex;
+            flex-direction: column;
+            gap: var(--tile-gap);
+            flex-shrink: 0;
+            width: var(--tile-w);
+            will-change: transform;
+        }
+
+        .drift-tile {
+            flex-shrink: 0;
+            width: var(--tile-w);
+            height: var(--tile-h);
+            border-radius: clamp(8px, 1.5vw, 14px);
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+            background: #120305;
+        }
+
+        .drift-tile img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            filter: saturate(1.4) hue-rotate(-10deg) brightness(0.65);
+            transition: opacity 0.3s ease;
+        }
+
+        /* Crimson tint overlay on tiles */
+        .drift-tile::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(160, 10, 25, 0.4), rgba(40, 2, 5, 0.6));
+            pointer-events: none;
+        }
+
+        /* Multi-directional Edge Vignettes for enhanced text legibility */
+        .drift-wall::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom,
+                    rgba(5, 1, 2, 1) 0%,
+                    rgba(5, 1, 2, 0.75) 15%,
+                    rgba(5, 1, 2, 0.1) 40%,
+                    rgba(5, 1, 2, 0) 50%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .drift-wall::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top,
+                    rgba(5, 1, 2, 1) 0%,
+                    rgba(5, 1, 2, 0.85) 20%,
+                    rgba(5, 1, 2, 0.3) 50%,
+                    rgba(5, 1, 2, 0) 70%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Left/Right Vignette overlay for tight displays */
+        .side-vignette {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+            background: linear-gradient(to right,
+                    rgba(5, 1, 2, 0.85) 0%,
+                    rgba(5, 1, 2, 0) 20%,
+                    rgba(5, 1, 2, 0) 80%,
+                    rgba(5, 1, 2, 0.85) 100%);
+        }
+
+        /* ═══════════════════════════════════════════════════
+           FOG CANVAS — Particle Effect Container (Full Width)
+           ═══════════════════════════════════════════════════ */
         #myCanvas {
             position: absolute;
             bottom: 0;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 0;
+            right: 0;
             width: 100%;
-            min-width: 800px;
-            /* Prevents the fog from squishing too much on thin phones */
-            height: 35vh;
-            /* Scales fog height dynamically */
-            max-height: 300px;
+            height: 40vh;
+            max-height: 320px;
             object-fit: cover;
             pointer-events: none;
             z-index: 5;
             mix-blend-mode: screen;
+            opacity: 0.9;
         }
 
-        /* Centered content container */
+        /* Hero Content Container */
         .container {
             position: relative;
             z-index: 10;
@@ -72,147 +189,64 @@
             align-items: center;
             justify-content: center;
             width: 100%;
-            padding: 0 1rem;
-            /* Added padding to prevent touching edges */
+            padding: 0 1.2rem;
+            text-align: center;
         }
 
-        /* Coming Soon glitch text */
-        .glitch-text {
-            font-weight: 900;
-            display: inline-block;
-        }
-
-        /* TIARA '26 — Scaled up minimum size slightly for mobile */
+        /* TIARA '26 Main Heading — Left offset applied to compensate for 'T' wing */
         h1.target-tiara {
-            font-family: 'Tiara', sans-serif;
-            font-size: clamp(3.2rem, 12vw, 9rem);
-            /* Increased minimum from 2.5rem */
-            line-height: 0.9;
+            font-family: 'Tiara', 'Cinzel', serif;
+            font-size: clamp(2.8rem, 11vw, 8.5rem);
+            font-weight: 900;
+            line-height: 0.95;
             margin: 0;
             padding: 0;
             white-space: nowrap;
             display: inline-block;
-            transform: translateX(clamp(-25px, -1vw, 0px));
-            /* Softened transform */
             text-align: center;
+            letter-spacing: -0.02em;
+            text-shadow: 0 0 30px rgba(235, 28, 44, 0.35), 0 10px 20px rgba(0, 0, 0, 0.8);
+            transform: translateX(clamp(-28px, -1.8vw, -10px));
         }
 
         .text-white {
             color: #ffffff;
         }
 
-        /* Coming Soon — Scaled up minimum size slightly */
+        .text-red {
+            color: #EB1C2C;
+            text-shadow: 0 0 20px rgba(235, 28, 44, 0.6);
+        }
+
+        /* Coming Soon Subtitle */
         h2.target-coming-soon {
-            font-family: 'Montserrat', sans-serif;
-            font-size: clamp(0.8rem, 2.5vw, 1.35rem);
-            /* Increased minimum */
-            font-weight: 300;
+            font-family: 'Goldman', sans-serif;
+            font-size: clamp(0.75rem, 2.2vw, 1.3rem);
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: clamp(4px, 2vw, 18px);
-            color: rgba(255, 255, 255, 0.88);
-            margin-top: clamp(12px, 2vh, 22px);
+            letter-spacing: clamp(4px, 1.8vw, 16px);
+            color: rgba(255, 255, 255, 0.92);
+            margin-top: clamp(14px, 2.5vh, 26px);
             padding: 0;
             display: inline-block;
             text-align: center;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
         }
 
-        /* ═══════════════════════════════════════════════════
-           DRIFT WALL — scrolling image tile background
-           ═══════════════════════════════════════════════════ */
-        .drift-wall {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            overflow: hidden;
-            perspective: 1200px;
-        }
+        /* Responsive adjustments for phones (< 600px) */
+        @media (max-width: 600px) {
+            :root {
+                --drift-rotate-x: 10deg;
+                --drift-rotate-y: -8deg;
+            }
 
-        .drift-plane {
-            display: flex;
-            gap: 18px;
-            justify-content: center;
-            width: 100%;
-            height: 100%;
-            transform: rotateX(16deg) rotateY(-14deg);
-            transform-style: preserve-3d;
-            transform-origin: 50% 50%;
-        }
+            #myCanvas {
+                height: 45vh;
+            }
 
-        .drift-column {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            flex-shrink: 0;
-            width: 340px;
-        }
-
-        .drift-tile {
-            flex-shrink: 0;
-            width: 340px;
-            height: 172px;
-            border-radius: 14px;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .drift-tile img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-            /* Push images toward red/crimson palette */
-            filter: saturate(1.4) hue-rotate(-10deg) brightness(0.7);
-        }
-
-        /* Dark red tinted overlay on each tile */
-        .drift-tile::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: rgba(120, 8, 8, 0.35);
-            pointer-events: none;
-        }
-
-        /* Fade-out mask: top edge fades in */
-        .drift-wall::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to bottom,
-                    rgba(0, 0, 0, 1) 0%,
-                    rgba(0, 0, 0, 0.7) 10%,
-                    rgba(0, 0, 0, 0.2) 25%,
-                    rgba(0, 0, 0, 0) 40%);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* Fade-out mask: bottom edge fades to black (before fog) */
-        .drift-wall::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(to bottom,
-                    rgba(0, 0, 0, 0) 0%,
-                    rgba(0, 0, 0, 0.15) 30%,
-                    rgba(0, 0, 0, 0.5) 55%,
-                    rgba(0, 0, 0, 0.85) 75%,
-                    rgba(0, 0, 0, 1) 90%);
-            pointer-events: none;
-            z-index: 1;
-        }
-
-        /* Smaller drift tiles on phones + full vignette fade on all edges */
-        @media (max-width: 480px) {
-            .drift-column { width: 140px; gap: 12px; }
-            .drift-tile   { width: 140px; height: 95px; border-radius: 10px; }
-            .drift-plane  { gap: 12px; }
-
-            /* Left/right fade on phones */
-            .drift-wall::before {
-                background:
-                    linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0) 30%),
-                    linear-gradient(to right, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 18%, rgba(0,0,0,0) 82%, rgba(0,0,0,0.9) 100%);
+            h1.target-tiara {
+                letter-spacing: -0.01em;
+                transform: translateX(-12px); /* Tighter offset on narrow screens */
             }
         }
     </style>
@@ -225,117 +259,156 @@
         <div class="drift-plane" id="driftPlane"></div>
     </div>
 
+    <!-- Side Edge Vignette Overlay -->
+    <div class="side-vignette"></div>
+
     <!-- Fog Canvas -->
     <canvas id="myCanvas" width="1600" height="250"></canvas>
 
+    <!-- Main Teaser Container -->
     <div class="container">
-        <!-- Targets for the VFX-JS Engine (Dead Centered) -->
         <h1 class="target-tiara">
-            <span class="text-white">Ti</span><span style="color: #EB1C2C;">ar</span><span class="text-white">a
-            </span><span style="color: #EB1C2C;">&apos;</span><span class="text-white">26</span>
+            <span class="text-white">Ti</span><span class="text-red">ar</span><span class="text-white">a</span>
+            <span class="text-red">&apos;</span><span class="text-white">26</span>
         </h1>
-        <h2 class="glitch-text target-coming-soon">Coming Soon</h2>
+        <h2 class="target-coming-soon">Coming Soon</h2>
     </div>
 
-    <!-- Fog Particle Script Tinted with #eb1c2c -->
     <script>
-        const canvas = document.getElementById("myCanvas");
-        const ctx = canvas.getContext("2d");
+        /* Fog Particle System with Automated Procedural Fallback */
+        (function () {
+            const canvas = document.getElementById("myCanvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
 
-        const canvasWidth = 1600;
-        const canvasHeight = 250;
+            const canvasWidth = 1600;
+            const canvasHeight = 250;
 
-        let pCount = 0;
-        let pCollection = [];
+            let pCount = 0;
+            let pCollection = [];
+            const puffs = 1;
+            const particlesPerPuff = 75;
 
-        const puffs = 1;
-        const particlesPerPuff = 80;
-        const img = 'smoke_eb1c2c.png';
+            // Image setup
+            const smokeImage = new Image();
+            let isImageLoaded = false;
+            let useProceduralFallback = false;
 
-        const smokeImage = new Image();
-        smokeImage.src = img;
+            smokeImage.onload = function () {
+                isImageLoaded = true;
+                useProceduralFallback = false;
+            };
 
-        function randBetween(n1, n2) {
-            return (Math.random() * (n2 - n1)) + n1;
-        }
+            smokeImage.onerror = function () {
+                isImageLoaded = false;
+                useProceduralFallback = true;
+                console.log("Smoke texture image missing: Using procedural crimson particle renderer.");
+            };
 
-        function addNewParticle(delay) {
-            const p = {};
-            p.top = canvasHeight - 20;
-            p.left = randBetween(-150, canvasWidth - 50);
+            // Attempt loading local image asset
+            smokeImage.src = 'smoke_eb1c2c.png';
 
-            p.start = new Date().getTime() + delay;
-            p.life = randBetween(6500, 9500);
-            p.speedUp = randBetween(18, 38);
-            p.speedRight = randBetween(-8, 18);
-
-            p.rot = randBetween(-0.5, 0.5);
-            p.startOpacity = randBetween(0.25, 0.45);
-            p.newTop = p.top;
-            p.newLeft = p.left;
-            p.size = randBetween(200, 350);
-            p.growth = randBetween(15, 30);
-
-            pCollection[pCount] = p;
-            pCount++;
-        }
-
-        for (let i1 = 0; i1 < puffs; i1++) {
-            const puffDelay = i1 * 1500;
-            for (let i2 = 0; i2 < particlesPerPuff; i2++) {
-                addNewParticle((i2 * 80) + puffDelay);
+            function randBetween(n1, n2) {
+                return (Math.random() * (n2 - n1)) + n1;
             }
-        }
 
-        function draw(startT) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            function addNewParticle(delay) {
+                const p = {};
+                p.top = canvasHeight - 20;
+                p.left = randBetween(-100, canvasWidth - 50);
 
-            const now = new Date().getTime();
+                p.start = new Date().getTime() + delay;
+                p.life = randBetween(6500, 9500);
+                p.speedUp = randBetween(16, 36);
+                p.speedRight = randBetween(-8, 16);
 
-            for (let i = 0; i < pCount; i++) {
-                const p = pCollection[i];
-                let td = now - p.start;
-                let frac = td / p.life;
+                p.rot = randBetween(-0.5, 0.5);
+                p.startOpacity = randBetween(0.25, 0.45);
+                p.newTop = p.top;
+                p.newLeft = p.left;
+                p.size = randBetween(200, 360);
+                p.growth = randBetween(15, 32);
 
-                // Continuously recycle particles for infinite natural fog
-                if (td > p.life) {
-                    p.start = now;
-                    p.top = canvasHeight - randBetween(0, 40);
-                    p.left = randBetween(-150, canvasWidth - 50);
-                    td = 0;
-                    frac = 0;
+                pCollection[pCount] = p;
+                pCount++;
+            }
+
+            for (let i1 = 0; i1 < puffs; i1++) {
+                const puffDelay = i1 * 1500;
+                for (let i2 = 0; i2 < particlesPerPuff; i2++) {
+                    addNewParticle((i2 * 80) + puffDelay);
                 }
+            }
 
-                if (td > 0) {
-                    const newTop = p.top - (p.speedUp * (td / 1000));
-                    const newLeft = p.left + (p.speedRight * (td / 1000));
-                    const newOpacity = Math.max(p.startOpacity * Math.sin(frac * Math.PI), 0);
-                    const newSize = p.size + (p.growth * (td / 1000));
-                    p.newTop = newTop;
-                    p.newLeft = newLeft;
+            // Procedural gradient drawer for fallback
+            function drawProceduralPuff(x, y, radius, opacity) {
+                ctx.save();
+                const centerX = x + radius / 2;
+                const centerY = y + radius / 2;
+                const grad = ctx.createRadialGradient(
+                    centerX, centerY, 0,
+                    centerX, centerY, radius / 2
+                );
 
-                    if (smokeImage.complete && newOpacity > 0.005) {
-                        ctx.globalAlpha = newOpacity;
-                        ctx.drawImage(smokeImage, newLeft, newTop, newSize, newSize);
+                grad.addColorStop(0, `rgba(235, 28, 44, ${opacity * 0.55})`);
+                grad.addColorStop(0.35, `rgba(180, 20, 35, ${opacity * 0.35})`);
+                grad.addColorStop(0.7, `rgba(100, 10, 20, ${opacity * 0.12})`);
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius / 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const now = new Date().getTime();
+
+                for (let i = 0; i < pCount; i++) {
+                    const p = pCollection[i];
+                    let td = now - p.start;
+                    let frac = td / p.life;
+
+                    // Infinite recycling loop
+                    if (td > p.life) {
+                        p.start = now;
+                        p.top = canvasHeight - randBetween(0, 40);
+                        p.left = randBetween(-100, canvasWidth - 50);
+                        td = 0;
+                        frac = 0;
+                    }
+
+                    if (td > 0) {
+                        const newTop = p.top - (p.speedUp * (td / 1000));
+                        const newLeft = p.left + (p.speedRight * (td / 1000));
+                        const newOpacity = Math.max(p.startOpacity * Math.sin(frac * Math.PI), 0);
+                        const newSize = p.size + (p.growth * (td / 1000));
+                        p.newTop = newTop;
+                        p.newLeft = newLeft;
+
+                        if (newOpacity > 0.005) {
+                            if (isImageLoaded) {
+                                ctx.globalAlpha = newOpacity;
+                                ctx.drawImage(smokeImage, newLeft, newTop, newSize, newSize);
+                            } else if (useProceduralFallback) {
+                                drawProceduralPuff(newLeft, newTop, newSize, newOpacity);
+                            }
+                        }
                     }
                 }
+
+                requestAnimationFrame(draw);
             }
 
-            requestAnimationFrame(function () {
-                draw(startT);
-            });
-        }
-
-        smokeImage.onload = function () {
-            draw(new Date().getTime());
-        };
-        if (smokeImage.complete) {
-            draw(new Date().getTime());
-        }
+            // Start animation loop immediately
+            draw();
+        })();
     </script>
 
-    <!-- DriftWall Animation Engine -->
     <script>
+        /* Responsive DriftWall Engine — Dynamic Columns & Seamless Infinite Drift */
         (function () {
             const ITEMS = [
                 { image: 'https://images.unsplash.com/photo-1517483000871-1dbf64a6e1c6?w=600&h=400&fit=crop', title: 'Red Smoke' },
@@ -355,109 +428,173 @@
                 { image: 'https://images.unsplash.com/photo-1516410529446-2c777cb7366d?w=600&h=400&fit=crop', title: 'Fire Sparks' },
             ];
 
-            const COLUMNS = 7;
-            const TILE_H = 172;
-            const GAP = 20;
-            const SPEED = 42;     // px per second
-            const VARIANCE = 0.45;
-
             const plane = document.getElementById('driftPlane');
+            let columns = [];
+            let currentColCount = 0;
+            let lastWidth = window.innerWidth;
 
-            // Distribute items round-robin into columns
-            const colData = Array.from({ length: COLUMNS }, () => []);
-            ITEMS.forEach((item, i) => colData[i % COLUMNS].push(item));
-
-            // Per-column speed factor (golden-ratio-based pseudo-randomness)
-            function colFactor(index) {
-                const pseudo = ((index * 0.6180339887 + 0.35) % 1) * 2 - 1;
-                return 1 + VARIANCE * pseudo;
+            /* Compute dynamic column count based on screen viewport breakpoint */
+            function getColumnCount() {
+                const w = window.innerWidth;
+                if (w < 600) return 3;        // Phones: 3 columns (allowed to overflow)
+                if (w < 1024) return 3;       // Tablets / Foldables: 3 columns
+                if (w < 1440) return 4;       // Laptops / Desktops: 4 columns
+                return 5;                     // Widescreen Monitors: 5 columns
             }
 
-            // Build DOM columns
-            const columns = [];
-            colData.forEach((items, ci) => {
-                const col = document.createElement('div');
-                col.className = 'drift-column';
+            function colFactor(index) {
+                const pseudo = ((index * 0.6180339887 + 0.35) % 1) * 2 - 1;
+                return 1 + 0.45 * pseudo;
+            }
 
-                // Height of one complete set of tiles for this column
-                const setHeight = items.length * (TILE_H + GAP);
-                // Need enough copies to cover viewport + one extra set for seamless wrap
-                const copies = Math.max(4, Math.ceil((window.innerHeight * 3) / setHeight) + 2);
+            /* Rebuild DOM layout on initialize or window resize */
+            function buildWall() {
+                const colCount = getColumnCount();
+                currentColCount = colCount;
 
-                for (let c = 0; c < copies; c++) {
-                    items.forEach(item => {
-                        const tile = document.createElement('div');
-                        tile.className = 'drift-tile';
-                        const img = document.createElement('img');
-                        img.src = item.image;
-                        img.alt = item.title;
-                        img.loading = 'lazy';
-                        tile.appendChild(img);
-                        col.appendChild(tile);
-                    });
-                }
+                // Calculate geometry parameters
+                const winW = window.innerWidth;
+                const winH = window.innerHeight;
 
-                plane.appendChild(col);
+                // Account for 3D rotation coverage angle
+                const coverageMultiplier = winW < 600 ? 1.35 : 1.25;
+                const gap = winW < 600 ? 12 : (winW < 1024 ? 16 : 20);
 
-                const dir = ci % 2 === 0 ? 1 : -1;  // alternate up/down
-                const vel = SPEED * colFactor(ci) * dir;
+                let tileW = (winW * coverageMultiplier - ((colCount - 1) * gap)) / colCount;
+                if (tileW < 120) tileW = 120;
+                const tileH = tileW * (172 / 340);
 
-                // Wrap at exactly one set of tiles — so duplicate tiles
-                // slide in pixel-perfectly with no visible jump
-                // Start offset above the screen so tiles fill viewport immediately
-                const startOffset = -(window.innerHeight * 0.8);
-                columns.push({ el: col, vel, wrapH: setHeight, offset: startOffset });
-            });
+                // Set CSS variables
+                document.documentElement.style.setProperty('--tile-w', `${tileW}px`);
+                document.documentElement.style.setProperty('--tile-h', `${tileH}px`);
+                document.documentElement.style.setProperty('--tile-gap', `${gap}px`);
 
-            // Animation loop — constant smooth scroll
+                // Clear existing DOM plane columns
+                plane.innerHTML = '';
+                columns = [];
+
+                // Distribute items round-robin into active columns
+                const colData = Array.from({ length: colCount }, () => []);
+                ITEMS.forEach((item, i) => colData[i % colCount].push(item));
+
+                const SPEED = winW < 600 ? 32 : 42; // Slower, smoother drift on mobile
+
+                colData.forEach((items, ci) => {
+                    const col = document.createElement('div');
+                    col.className = 'drift-column';
+
+                    const setHeight = items.length * (tileH + gap);
+                    const copies = Math.max(4, Math.ceil((winH * 3) / setHeight) + 2);
+
+                    for (let c = 0; c < copies; c++) {
+                        items.forEach(item => {
+                            const tile = document.createElement('div');
+                            tile.className = 'drift-tile';
+
+                            const img = document.createElement('img');
+                            img.src = item.image;
+                            img.alt = item.title;
+                            img.loading = 'lazy';
+                            img.onerror = function () {
+                                // Fallback stylized gradient if Unsplash image fails to load
+                                this.style.display = 'none';
+                                tile.style.background = 'linear-gradient(135deg, #4a060d, #120204)';
+                            };
+
+                            tile.appendChild(img);
+                            col.appendChild(tile);
+                        });
+                    }
+
+                    plane.appendChild(col);
+
+                    const dir = ci % 2 === 0 ? 1 : -1; // Alternate scroll directions
+                    const vel = SPEED * colFactor(ci) * dir;
+                    const baseOffset = setHeight;
+                    const startOffset = baseOffset + (Math.random() * setHeight);
+
+                    columns.push({ el: col, vel, wrapH: setHeight, offset: startOffset, baseOffset });
+                });
+            }
+
+            // Animation Loop — constant delta-time smooth scrolling
             let lastTs = null;
             function tick(ts) {
                 if (!lastTs) lastTs = ts;
                 const dt = (ts - lastTs) / 1000;
                 lastTs = ts;
 
+                // Cap maximum delta frame jump (e.g. tab switching)
+                const clampedDt = Math.min(dt, 0.1);
+
                 columns.forEach(c => {
-                    c.offset += c.vel * dt;
-                    // Modulo wrap at one tile-set height for seamless looping
-                    if (c.offset > c.wrapH) c.offset -= c.wrapH;
-                    if (c.offset < -c.wrapH) c.offset += c.wrapH;
+                    c.offset += c.vel * clampedDt;
+                    if (c.offset > c.baseOffset + c.wrapH) c.offset -= c.wrapH;
+                    if (c.offset < c.baseOffset) c.offset += c.wrapH;
+
                     c.el.style.transform = `translateY(${-c.offset}px)`;
                 });
 
                 requestAnimationFrame(tick);
             }
+
+            // Build initial grid wall & start loop
+            buildWall();
             requestAnimationFrame(tick);
+
+            // Handle Resize & Device Orientation change with debouncing
+            let resizeTimer = null;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(() => {
+                    // Rebuild wall if column count changes or width changes significantly (> 40px)
+                    if (getColumnCount() !== currentColCount || Math.abs(window.innerWidth - lastWidth) > 40) {
+                        lastWidth = window.innerWidth;
+                        buildWall();
+                    }
+                }, 150);
+            });
         })();
     </script>
 
-    <!-- Script initialization module -->
+    <!-- VFX Engine Loader -->
     <script type="module">
         import { VFX } from "https://esm.sh/@vfx-js/core";
 
-        // Initialize VFX pipeline engine manager
-        const vfx = new VFX();
+        try {
+            // Initialize VFX pipeline engine
+            const vfx = new VFX();
 
-        // Apply glitch shader ONLY to Coming Soon — TIARA '26 uses clean Tiara font
-        const comingSoonText = document.querySelector('.target-coming-soon');
+            const comingSoonText = document.querySelector('.target-coming-soon');
 
-        const applyGlitch = (el, overflowAmount = 100) => {
-            if (!el) return;
-            if (typeof vfx.add === 'function') {
-                vfx.add(el, {
-                    shader: 'glitch',
-                    overflow: overflowAmount
+            // Reduced VFX Effect: Swapped 'glitch' (heavy tearing) to 'rgbShift' (subtle hologram vibe)
+            const applyGlitch = (el, overflowAmount = 60) => {
+                if (!el) return;
+                if (typeof vfx.add === 'function') {
+                    vfx.add(el, {
+                        shader: 'rgbShift', 
+                        overflow: overflowAmount
+                    });
+                } else if (typeof vfx.addHTML === 'function') {
+                    vfx.addHTML(el, {
+                        shader: 'rgbShift',
+                        release: 10
+                    });
+                }
+            };
+
+            if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(() => {
+                    applyGlitch(comingSoonText, 40);
+                }).catch(() => {
+                    applyGlitch(comingSoonText, 40);
                 });
-            } else if (typeof vfx.addHTML === 'function') {
-                vfx.addHTML(el, {
-                    shader: 'glitch',
-                    release: 10
-                });
+            } else {
+                setTimeout(() => applyGlitch(comingSoonText, 40), 500);
             }
-        };
-
-        document.fonts.ready.then(() => {
-            applyGlitch(comingSoonText, 80);
-        });
+        } catch (err) {
+            console.log("VFX-JS initialized in standard fallback mode.");
+        }
     </script>
 </body>
 
