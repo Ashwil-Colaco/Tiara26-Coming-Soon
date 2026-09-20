@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TIARA '26 Teaser</title>
+    <title>TIARA '26</title>
 
     <!-- Preconnect & Google Fonts (Goldman, Montserrat, Cinzel for Tiara fallback) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -177,6 +177,11 @@
             pointer-events: none;
             z-index: 5;
             mix-blend-mode: screen;
+            opacity: 0;
+            transition: opacity 1.2s ease-in-out;
+        }
+
+        #myCanvas.revealed {
             opacity: 0.9;
         }
 
@@ -209,6 +214,22 @@
             transform: translateX(clamp(-28px, -1.8vw, -10px));
         }
 
+        /* Pad-synced Letter Groups */
+        .letter-group {
+            display: inline-block;
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.94) translateZ(0);
+            transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+            will-change: opacity, transform;
+        }
+
+        .letter-group.revealed {
+            opacity: 1;
+            visibility: visible;
+            transform: scale(1) translateZ(0);
+        }
+
         .text-white {
             color: #ffffff;
         }
@@ -216,6 +237,10 @@
         .text-red {
             color: #EB1C2C;
             text-shadow: 0 0 20px rgba(235, 28, 44, 0.6);
+        }
+
+        .lg-quote-26 {
+            margin-left: clamp(10px, 1.4vw, 24px);
         }
 
         /* Coming Soon Subtitle */
@@ -227,11 +252,42 @@
             letter-spacing: clamp(4px, 1.8vw, 16px);
             color: rgba(255, 255, 255, 0.92);
             margin-top: clamp(14px, 2.5vh, 26px);
+            margin-left: clamp(14px, 1.8vw, 32px);
             padding: 0;
             display: inline-block;
             text-align: center;
             text-shadow: 0 2px 10px rgba(0, 0, 0, 0.9);
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.96);
+            transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
         }
+
+        h2.target-coming-soon.revealed {
+            opacity: 1;
+            visibility: visible;
+            transform: scale(1);
+        }
+
+        /* ═══════════════════════════════════════════════════
+           EMBERS — Floating Retro Sparks from Fog
+           ═══════════════════════════════════════════════════ */
+        #embersCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 4;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1.2s ease-in-out;
+        }
+
+        #embersCanvas.revealed {
+            opacity: 1;
+        }
+
 
         /* Responsive adjustments for phones (< 600px) */
         @media (max-width: 600px) {
@@ -246,8 +302,10 @@
 
             h1.target-tiara {
                 letter-spacing: -0.01em;
-                transform: translateX(-12px); /* Tighter offset on narrow screens */
+                transform: translateX(-12px);
+                /* Tighter offset on narrow screens */
             }
+
         }
     </style>
 </head>
@@ -262,17 +320,384 @@
     <!-- Side Edge Vignette Overlay -->
     <div class="side-vignette"></div>
 
+    <!-- Embers Canvas (upper area sparks) -->
+    <canvas id="embersCanvas"></canvas>
+
     <!-- Fog Canvas -->
     <canvas id="myCanvas" width="1600" height="250"></canvas>
 
     <!-- Main Teaser Container -->
     <div class="container">
         <h1 class="target-tiara">
-            <span class="text-white">Ti</span><span class="text-red">ar</span><span class="text-white">a</span>
-            <span class="text-red">&apos;</span><span class="text-white">26</span>
+            <span class="letter-group lg-ti text-white">Ti</span><span class="letter-group lg-ar text-red">ar</span><span class="letter-group lg-a text-white">a</span><span class="letter-group lg-quote-26"><span class="text-red quote-mark">&apos;</span><span class="text-white">26</span></span>
         </h1>
         <h2 class="target-coming-soon">Coming Soon</h2>
     </div>
+
+    <!-- Audio -->
+    <audio id="bgm" preload="auto" src="apalonbeats-suspenseful-566692.mp3"></audio>
+
+    <!-- Intro Overlay -->
+    <div id="intro-overlay">
+        <div class="intro-prompt" id="promptBox">
+            <span class="intro-icon">🎧</span>
+            Use earphones for best experience
+        </div>
+        <button class="intro-btn" id="enterBtn">ENTER</button>
+    </div>
+
+    <style>
+        #intro-overlay {
+            position: fixed;
+            inset: 0;
+            background: #050102;
+            z-index: 99999;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            gap: clamp(20px, 4vh, 36px);
+            padding: clamp(20px, 5vw, 40px);
+            transition: opacity 0.2s ease-out;
+            will-change: opacity;
+        }
+
+        .intro-prompt {
+            font-family: 'Goldman', sans-serif;
+            font-size: clamp(0.85rem, 2.5vw, 1.35rem);
+            font-weight: 700;
+            letter-spacing: clamp(3px, 1.2vw, 8px);
+            color: rgba(255, 255, 255, 0.92);
+            text-transform: uppercase;
+            text-shadow: 0 0 20px rgba(235, 28, 44, 0.5);
+            animation: introGlow 2.5s infinite alternate ease-in-out;
+            line-height: 1.5;
+        }
+
+        .intro-icon {
+            font-size: clamp(2.2rem, 5vw, 3.5rem);
+            display: block;
+            margin-bottom: clamp(8px, 1.5vh, 16px);
+            filter: drop-shadow(0 0 15px rgba(235, 28, 44, 0.6));
+        }
+
+        @keyframes introGlow {
+            0% { opacity: 0.8; text-shadow: 0 0 15px rgba(235, 28, 44, 0.3); }
+            100% { opacity: 1; text-shadow: 0 0 30px rgba(235, 28, 44, 0.8), 0 0 60px rgba(235, 28, 44, 0.4); }
+        }
+
+        .intro-btn {
+            font-family: 'Goldman', sans-serif;
+            padding: clamp(14px, 2.2vh, 18px) clamp(36px, 6vw, 60px);
+            font-size: clamp(0.95rem, 3.2vw, 1.35rem);
+            font-weight: 700;
+            letter-spacing: clamp(4px, 1.2vw, 8px);
+            background: transparent;
+            color: #ffffff;
+            border: 2px solid #EB1C2C;
+            border-radius: 4px;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(235, 28, 44, 0.3);
+            animation: introPulse 2s infinite ease-in-out;
+            transition: all 0.3s ease;
+        }
+
+        .intro-btn:hover, .intro-btn:active {
+            background: #EB1C2C;
+            box-shadow: 0 0 35px rgba(235, 28, 44, 0.8);
+            transform: scale(1.05);
+        }
+
+        @keyframes introPulse {
+            0%, 100% { transform: scale(1); opacity: 0.9; }
+            50% { transform: scale(1.04); opacity: 1; }
+        }
+    </style>
+
+    <script>
+        (function () {
+            var audio = document.getElementById('bgm');
+            var overlay = document.getElementById('intro-overlay');
+            var started = false;
+
+            var hit1Done = false; // 0.0s -> TI
+            var hit2Done = false; // 3.18s -> AR
+            var hit3Done = false; // 6.35s -> A
+            var hit4Done = false; // 9.60s -> '26
+            var fullDropDone = false; // 12.85s -> Full page
+
+            function revealHit1() {
+                if (hit1Done) return;
+                hit1Done = true;
+                var el = document.querySelector('.lg-ti');
+                if (el) el.classList.add('revealed');
+            }
+
+            function revealHit2() {
+                if (hit2Done) return;
+                hit2Done = true;
+                var el = document.querySelector('.lg-ar');
+                if (el) el.classList.add('revealed');
+            }
+
+            function revealHit3() {
+                if (hit3Done) return;
+                hit3Done = true;
+                var el = document.querySelector('.lg-a');
+                if (el) el.classList.add('revealed');
+            }
+
+            function revealHit4() {
+                if (hit4Done) return;
+                hit4Done = true;
+                var el = document.querySelector('.lg-quote-26');
+                if (el) el.classList.add('revealed');
+            }
+
+            function revealFullDrop() {
+                if (fullDropDone) return;
+                fullDropDone = true;
+                window.comingSoonPageAppeared = true;
+
+                revealHit1();
+                revealHit2();
+                revealHit3();
+                revealHit4();
+
+                var smoke = document.getElementById('myCanvas');
+                var embers = document.getElementById('embersCanvas');
+                var cs = document.querySelector('.target-coming-soon');
+
+                if (smoke) smoke.classList.add('revealed');
+                if (embers) embers.classList.add('revealed');
+                if (cs) cs.classList.add('revealed');
+
+                if (typeof window.initComingSoonVFX === 'function') {
+                    window.initComingSoonVFX();
+                }
+            }
+
+            function startExperience() {
+                if (started) return;
+                started = true;
+
+                // Immediately hide overlay without lag
+                overlay.style.pointerEvents = 'none';
+                overlay.style.opacity = '0';
+                setTimeout(function () {
+                    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+                }, 220);
+
+                // Pad 1 reveals immediately on enter tap
+                revealHit1();
+
+                // Play audio from start natively
+                try {
+                    audio.currentTime = 0;
+                    audio.volume = 1;
+                    var p = audio.play();
+                    if (p && typeof p.catch === 'function') {
+                        p.catch(function () {});
+                    }
+                } catch (err) {}
+
+                // Run audio tracking loop
+                requestAnimationFrame(trackAudio);
+
+                // Fallback timers in case audio.currentTime is deferred
+                setTimeout(revealHit2, 3180);
+                setTimeout(revealHit3, 6350);
+                setTimeout(revealHit4, 9600);
+                setTimeout(revealFullDrop, 12850);
+            }
+
+            function trackAudio() {
+                if (!audio) return;
+                var cur = audio.currentTime;
+                var dur = audio.duration;
+
+                // Pad 1: 0.0s -> TI
+                if (cur >= 0.0) revealHit1();
+
+                // Pad 2: 3.18s -> AR
+                if (cur >= 3.18) revealHit2();
+
+                // Pad 3: 6.35s -> A
+                if (cur >= 6.35) revealHit3();
+
+                // Pad 4: 9.60s -> '26
+                if (cur >= 9.60) revealHit4();
+
+                // Full drop: 12.85s (0:13) -> full page
+                if (cur >= 12.85) revealFullDrop();
+
+                // Fade out near end of track
+                if (dur && !isNaN(dur) && dur > 0 && (dur - cur <= 4.5)) {
+                    var left = dur - cur;
+                    audio.volume = Math.max(0, Math.pow(left / 4.5, 1.5));
+                }
+
+                if (!audio.ended) {
+                    requestAnimationFrame(trackAudio);
+                }
+            }
+
+            var btn = document.getElementById('enterBtn');
+            if (btn) {
+                btn.addEventListener('click', startExperience);
+                btn.addEventListener('touchend', function (e) {
+                    e.preventDefault();
+                    startExperience();
+                }, { passive: false });
+            }
+
+            // Preload audio buffer immediately
+            if (audio) {
+                try { audio.load(); } catch (e) {}
+            }
+        })();
+    </script>
+
+    <script>
+        /* Floating Embers — Sparks rising from the fog */
+        (function () {
+            const canvas = document.getElementById('embersCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+
+            let W, H;
+            function resize() {
+                W = canvas.width = window.innerWidth;
+                H = canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            const EMBER_COUNT = Math.min(50, Math.floor(window.innerWidth / 22));
+            const embers = [];
+
+            // Color palette matching the dark crimson background
+            const COLORS = [
+                { h: 355, s: 60, l: 55 },  // soft crimson
+                { h: 0,   s: 50, l: 50 },  // muted red
+                { h: 15,  s: 40, l: 60 },  // warm pale ember
+                { h: 350, s: 45, l: 55 },  // dusty rose
+                { h: 20,  s: 30, l: 65 },  // faint warm white
+            ];
+
+            function createEmber() {
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                // Spawn from the bottom 15% (fog zone)
+                const spawnY = H - (Math.random() * H * 0.15);
+                // Cluster more toward center but allow full width spread
+                const spawnX = W * 0.15 + Math.random() * W * 0.7;
+
+                return {
+                    x: spawnX,
+                    y: spawnY,
+                    size: Math.random() * 2 + 1,
+                    speedY: -(Math.random() * 0.8 + 0.3),
+                    speedX: (Math.random() - 0.5) * 0.3,
+                    drift: Math.random() * Math.PI * 2,
+                    driftSpeed: Math.random() * 0.006 + 0.002,
+                    driftAmp: Math.random() * 0.4 + 0.15,
+                    maxOpacity: Math.random() * 0.45 + 0.25,
+                    spikeLen: Math.random() * 6 + 3,  // length of star spikes
+                    opacity: 0,
+                    startY: spawnY,
+                    color: color,
+                    pulse: Math.random() * Math.PI * 2,
+                    pulseSpeed: Math.random() * 0.02 + 0.01,
+                };
+            }
+
+            for (let i = 0; i < EMBER_COUNT; i++) {
+                const e = createEmber();
+                // Scatter initial positions across full height for first frame
+                e.y = H * 0.3 + Math.random() * H * 0.7;
+                e.startY = e.y;
+                e.opacity = e.maxOpacity * (1 - (e.startY - e.y) / e.startY);
+                embers.push(e);
+            }
+
+            function drawEmber(e) {
+                const pulseGlow = 0.5 + 0.5 * Math.sin(e.pulse);
+                const alpha = e.opacity * (0.5 + 0.5 * pulseGlow);
+                if (alpha < 0.008) return;
+
+                const c = e.color;
+
+                // Draw 4-pointed star spikes (cross shape)
+                const spikeLen = e.spikeLen * (0.8 + pulseGlow * 0.4);
+                ctx.save();
+                ctx.globalAlpha = alpha * 0.5;
+                ctx.strokeStyle = `hsla(${c.h}, ${c.s}%, ${c.l}%, ${alpha * 0.6})`;
+                ctx.lineWidth = 0.5;
+
+                // Vertical spike
+                ctx.beginPath();
+                ctx.moveTo(e.x, e.y - spikeLen);
+                ctx.lineTo(e.x, e.y + spikeLen);
+                ctx.stroke();
+
+                // Horizontal spike
+                ctx.beginPath();
+                ctx.moveTo(e.x - spikeLen, e.y);
+                ctx.lineTo(e.x + spikeLen, e.y);
+                ctx.stroke();
+
+                // Shorter diagonal spikes
+                const diagLen = spikeLen * 0.45;
+                ctx.globalAlpha = alpha * 0.25;
+                ctx.beginPath();
+                ctx.moveTo(e.x - diagLen, e.y - diagLen);
+                ctx.lineTo(e.x + diagLen, e.y + diagLen);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(e.x + diagLen, e.y - diagLen);
+                ctx.lineTo(e.x - diagLen, e.y + diagLen);
+                ctx.stroke();
+
+                ctx.restore();
+
+                // Tiny bright center dot
+                ctx.fillStyle = `hsla(${c.h}, ${c.s - 20}%, ${c.l + 25}%, ${alpha * 0.9})`;
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, e.size * 0.4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, W, H);
+
+                for (let i = 0; i < embers.length; i++) {
+                    const e = embers[i];
+
+                    e.drift += e.driftSpeed;
+                    e.pulse += e.pulseSpeed;
+                    e.x += e.speedX + Math.sin(e.drift) * e.driftAmp;
+                    e.y += e.speedY;
+
+                    // Opacity based on how far it has traveled from spawn
+                    const traveled = (e.startY - e.y) / e.startY;
+                    e.opacity = e.maxOpacity * Math.max(0, 1 - traveled * 1.2);
+
+                    // Reset when off-screen or fully faded
+                    if (e.y < -20 || e.opacity <= 0 || e.x < -30 || e.x > W + 30) {
+                        embers[i] = createEmber();
+                    }
+
+                    drawEmber(e);
+                }
+
+                requestAnimationFrame(animate);
+            }
+
+            animate();
+        })();
+    </script>
 
     <script>
         /* Fog Particle System with Automated Procedural Fallback */
@@ -561,39 +986,41 @@
     <script type="module">
         import { VFX } from "https://esm.sh/@vfx-js/core";
 
-        try {
-            // Initialize VFX pipeline engine
-            const vfx = new VFX();
+        let vfxInitialized = false;
 
-            const comingSoonText = document.querySelector('.target-coming-soon');
+        window.initComingSoonVFX = function () {
+            if (vfxInitialized) return;
+            vfxInitialized = true;
 
-            // Reduced VFX Effect: Swapped 'glitch' (heavy tearing) to 'rgbShift' (subtle hologram vibe)
-            const applyGlitch = (el, overflowAmount = 60) => {
-                if (!el) return;
-                if (typeof vfx.add === 'function') {
-                    vfx.add(el, {
-                        shader: 'rgbShift', 
-                        overflow: overflowAmount
-                    });
-                } else if (typeof vfx.addHTML === 'function') {
-                    vfx.addHTML(el, {
-                        shader: 'rgbShift',
-                        release: 10
-                    });
-                }
-            };
+            try {
+                const vfx = new VFX();
+                const comingSoonText = document.querySelector('.target-coming-soon');
+                if (!comingSoonText) return;
 
-            if (document.fonts && document.fonts.ready) {
-                document.fonts.ready.then(() => {
-                    applyGlitch(comingSoonText, 40);
-                }).catch(() => {
-                    applyGlitch(comingSoonText, 40);
-                });
-            } else {
-                setTimeout(() => applyGlitch(comingSoonText, 40), 500);
+                const applyGlitch = (el, overflowAmount = 40) => {
+                    if (!el) return;
+                    if (typeof vfx.add === 'function') {
+                        vfx.add(el, {
+                            shader: 'rgbShift',
+                            overflow: overflowAmount
+                        });
+                    } else if (typeof vfx.addHTML === 'function') {
+                        vfx.addHTML(el, {
+                            shader: 'rgbShift',
+                            release: 10
+                        });
+                    }
+                };
+
+                applyGlitch(comingSoonText, 40);
+            } catch (err) {
+                console.log("VFX-JS initialized in fallback mode.");
             }
-        } catch (err) {
-            console.log("VFX-JS initialized in standard fallback mode.");
+        };
+
+        // If overlay was already dropped before this module loaded, trigger immediately
+        if (window.comingSoonPageAppeared || !document.getElementById('intro-overlay')) {
+            window.initComingSoonVFX();
         }
     </script>
 </body>
