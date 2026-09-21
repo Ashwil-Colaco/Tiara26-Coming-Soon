@@ -507,12 +507,317 @@
         }
     </style>
 
+    <!-- Unified Audio & Intro Experience Controller -->
     <script>
         (function () {
-            var audio = document.getElementById('bgm');
+            var audioEl = document.getElementById('bgm');
+            var muteBtn = document.getElementById('muteBtn');
             var overlay = document.getElementById('intro-overlay');
-            var started = false;
 
+            /* ── SoundController ──
+               Uses Web Audio API (AudioContext) as primary playback so mobile
+               browsers (Android Chrome, iOS Safari) do NOT display a persistent
+               media notification / lock screen player in the phone's notification bar.
+               Automatically pauses immediately when user leaves the page, and resumes
+               when user returns. Falls back gracefully to HTML5 <audio> if needed. */
+            var SoundController = (function () {
+                var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                var audioCtx = null;
+                var gainNode = null;
+                var sourceNode = null;
+                var audioBuffer = null;
+                var isWebAudioSupported = !!AudioContextClass;
+                var webAudioReady = false;
+                var webAudioFailed = false;
+                var playPending = false;
+
+                var isPlaying = false;
+                var isMuted = false;
+                var hasStarted = false;
+                var isEnded = false;
+                var wasPlayingBeforeHidden = false;
+
+                var startContextTime = 0;
+                var duration = 0;
+                var baseVolume = 1.0;
+
+                // Pre-fetch & decode audio buffer eagerly during intro overlay
+                function initPreload() {
+                    if (!isWebAudioSupported) return;
+                    try {
+                        var testEl = document.createElement('audio');
+                        var canPlayWebM = !!(testEl.canPlayType && testEl.canPlayType('audio/webm; codecs="opus"'));
+                        var primaryUrl = canPlayWebM ? 'tiara-theme.webm' : 'tiara-theme.mp3';
+                        var fallbackUrl = canPlayWebM ? 'tiara-theme.mp3' : 'tiara-theme.webm';
+
+                        fetch(primaryUrl)
+                            .catch(function () { return fetch(fallbackUrl); })
+                            .then(function (res) {
+                                if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+                                return res.arrayBuffer();
+                            })
+                            .then(function (arrayBuf) {
+                                if (!audioCtx) audioCtx = new AudioContextClass();
+                                return new Promise(function (resolve, reject) {
+                                    audioCtx.decodeAudioData(arrayBuf, resolve, function (err) {
+                                        // If primary decode failed, try fallback
+                                        fetch(fallbackUrl)
+                                            .then(function (r) { return r.arrayBuffer(); })
+                                            .then(function (buf2) {
+                                                audioCtx.decodeAudioData(buf2, resolve, reject);
+                                            })
+                                            .catch(reject);
+                                    });
+                                });
+                            })
+                            .then(function (decoded) {
+                                audioBuffer = decoded;
+                                duration = decoded.duration;
+                                webAudioReady = true;
+
+                                // If user tapped ENTER before decoding finished, start immediately
+                                if (playPending) {
+                                    playPending = false;
+                                    startWebAudio();
+                                }
+                            })
+                            .catch(function (err) {
+                                console.log('Web Audio preload fallback to HTML5 Audio:', err);
+                                webAudioFailed = true;
+                                if (playPending) {
+                                    playPending = false;
+                                    startHtmlAudio();
+                                }
+                            });
+                    } catch (e) {
+                        webAudioFailed = true;
+                    }
+                }
+
+                initPreload();
+
+                function play() {
+                    if (hasStarted && !isEnded && !isPlaying) {
+                        resume();
+                        return;
+                    }
+
+                    hasStarted = true;
+                    isPlaying = true;
+                    isEnded = false;
+
+                    if (isWebAudioSupported && !webAudioFailed && audioBuffer) {
+                        startWebAudio();
+                    } else if (isWebAudioSupported && !webAudioFailed) {
+                        // Mark pending while decoding finishes
+                        playPending = true;
+                        if (!audioCtx) {
+                            try { audioCtx = new AudioContextClass(); } catch (e) {}
+                        }
+                        if (audioCtx && audioCtx.state === 'suspended') {
+                            audioCtx.resume().catch(function () {});
+                        }
+                        // Safety timeout: if decoding takes longer than 400ms, fall back to HTML5 audio
+                        setTimeout(function () {
+                            if (playPending) {
+                                playPending = false;
+                                webAudioFailed = true;
+                                startHtmlAudio();
+                            }
+                        }, 400);
+                    } else {
+                        startHtmlAudio();
+                    }
+                }
+
+                function startWebAudio() {
+                    try {
+                        if (!audioCtx) audioCtx = new AudioContextClass();
+                        if (audioCtx.state === 'suspended') {
+                            audioCtx.resume().catch(function () {});
+                        }
+
+                        gainNode = audioCtx.createGain();
+                        gainNode.gain.setValueAtTime(isMuted ? 0 : baseVolume, audioCtx.currentTime);
+                        gainNode.connect(audioCtx.destination);
+
+                        sourceNode = audioCtx.createBufferSource();
+                        sourceNode.buffer = audioBuffer;
+                        sourceNode.connect(gainNode);
+
+                        sourceNode.onended = function () {
+                            if (isPlaying && (getCurrentTime() >= (duration - 0.3))) {
+                                isEnded = true;
+                                isPlaying = false;
+                            }
+                        };
+
+                        startContextTime = audioCtx.currentTime;
+                        sourceNode.start(0);
+                    } catch (err) {
+                        console.warn('Web Audio start failed, falling back to HTML5 audio', err);
+                        startHtmlAudio();
+                    }
+                }
+
+                function startHtmlAudio() {
+                    if (!audioEl) return;
+                    try {
+                        audioEl.currentTime = 0;
+                        audioEl.volume = isMuted ? 0 : baseVolume;
+                        audioEl.muted = isMuted;
+                        var p = audioEl.play();
+                        if (p && typeof p.catch === 'function') {
+                            p.catch(function () {});
+                        }
+                    } catch (e) {}
+                }
+
+                function pause(fromHidden) {
+                    if (!hasStarted || isEnded) return;
+                    if (fromHidden) {
+                        wasPlayingBeforeHidden = isPlaying;
+                    }
+                    isPlaying = false;
+
+                    // Web Audio: suspending context freezes playback and context clock cleanly
+                    if (audioCtx && audioCtx.state === 'running') {
+                        audioCtx.suspend().catch(function () {});
+                    }
+
+                    // Fallback HTML5 audio: pause immediately
+                    if (audioEl && !audioEl.paused) {
+                        try { audioEl.pause(); } catch (e) {}
+                    }
+
+                    // Clear OS media session state if present
+                    if ('mediaSession' in navigator) {
+                        try { navigator.mediaSession.playbackState = 'none'; } catch (e) {}
+                    }
+                }
+
+                function resume() {
+                    if (!hasStarted || isEnded) return;
+                    isPlaying = true;
+
+                    if (audioCtx && audioCtx.state === 'suspended') {
+                        audioCtx.resume().catch(function () {});
+                    } else if (audioEl && audioEl.paused) {
+                        var p = audioEl.play();
+                        if (p && typeof p.catch === 'function') {
+                            p.catch(function () {});
+                        }
+                    }
+                }
+
+                function resumeIfHidden() {
+                    if (wasPlayingBeforeHidden && !isEnded) {
+                        wasPlayingBeforeHidden = false;
+                        resume();
+                    }
+                }
+
+                function getCurrentTime() {
+                    if (audioCtx && audioBuffer && sourceNode) {
+                        return Math.min(duration, Math.max(0, audioCtx.currentTime - startContextTime));
+                    }
+                    if (audioEl) {
+                        return audioEl.currentTime || 0;
+                    }
+                    return 0;
+                }
+
+                function getDuration() {
+                    if (audioBuffer) return audioBuffer.duration;
+                    if (audioEl && audioEl.duration) return audioEl.duration;
+                    return duration || 0;
+                }
+
+                function setVolume(vol) {
+                    baseVolume = vol;
+                    if (gainNode && audioCtx) {
+                        gainNode.gain.setValueAtTime(isMuted ? 0 : vol, audioCtx.currentTime);
+                    }
+                    if (audioEl) {
+                        audioEl.volume = isMuted ? 0 : vol;
+                    }
+                }
+
+                function toggleMute() {
+                    isMuted = !isMuted;
+                    if (gainNode && audioCtx) {
+                        gainNode.gain.setValueAtTime(isMuted ? 0 : baseVolume, audioCtx.currentTime);
+                    }
+                    if (audioEl) {
+                        audioEl.muted = isMuted;
+                        audioEl.volume = isMuted ? 0 : baseVolume;
+                    }
+                    updateMuteButtonUI();
+                }
+
+                function updateMuteButtonUI() {
+                    if (!muteBtn) return;
+                    muteBtn.classList.toggle('is-muted', isMuted);
+                    muteBtn.setAttribute('aria-pressed', isMuted ? 'true' : 'false');
+                    muteBtn.setAttribute('aria-label', isMuted ? 'Unmute audio' : 'Mute audio');
+                }
+
+                // ── Page Visibility API & Lifecycle Listeners ──
+                // Immediately stops playback when user switches apps, switches tabs, goes home, or locks screen
+                document.addEventListener('visibilitychange', function () {
+                    if (document.hidden) {
+                        pause(true);
+                    } else {
+                        resumeIfHidden();
+                    }
+                });
+
+                // Secondary hook for mobile browsers when navigating away
+                window.addEventListener('pagehide', function () {
+                    pause(true);
+                });
+
+                // Cleanup on ended
+                if (audioEl) {
+                    audioEl.addEventListener('ended', function () {
+                        isEnded = true;
+                        isPlaying = false;
+                        setVolume(0);
+                    });
+                }
+
+                // Initial mute button setup
+                updateMuteButtonUI();
+
+                return {
+                    play: play,
+                    pause: pause,
+                    resume: resume,
+                    resumeIfHidden: resumeIfHidden,
+                    getCurrentTime: getCurrentTime,
+                    getDuration: getDuration,
+                    setVolume: setVolume,
+                    toggleMute: toggleMute,
+                    isEnded: function () { return isEnded; },
+                    isPlaying: function () { return isPlaying; },
+                    isMuted: function () { return isMuted; }
+                };
+            })();
+
+            // Wire up Mute button
+            if (muteBtn) {
+                function onMuteToggle(e) {
+                    e.preventDefault();
+                    SoundController.toggleMute();
+                }
+                muteBtn.addEventListener('click', onMuteToggle);
+                muteBtn.addEventListener('touchend', onMuteToggle, { passive: false });
+            }
+
+            // Expose globally for other components if needed
+            window.TiaraAudio = SoundController;
+
+            var started = false;
             var hit1Done = false; // 0.0s -> TI
             var hit2Done = false; // 3.18s -> AR
             var hit3Done = false; // 6.35s -> A
@@ -586,30 +891,32 @@
                 // Pad 1 reveals immediately on enter tap
                 revealHit1();
 
-                // Play audio from start natively
-                try {
-                    audio.currentTime = 0;
-                    audio.volume = 1;
-                    var p = audio.play();
-                    if (p && typeof p.catch === 'function') {
-                        p.catch(function () {});
-                    }
-                } catch (err) {}
+                // Start audio via SoundController
+                SoundController.play();
 
                 // Run audio tracking loop
                 requestAnimationFrame(trackAudio);
 
-                // Fallback timers in case audio.currentTime is deferred
-                setTimeout(revealHit2, 3180);
-                setTimeout(revealHit3, 6350);
-                setTimeout(revealHit4, 9600);
-                setTimeout(revealFullDrop, 12850);
+                // Fallback timers in case audio is blocked or deferred
+                var t2 = setTimeout(revealHit2, 3180);
+                var t3 = setTimeout(revealHit3, 6350);
+                var t4 = setTimeout(revealHit4, 9600);
+                var td = setTimeout(revealFullDrop, 12850);
+
+                // If user leaves before reveals complete, cancel fallback timers so they don't jump ahead
+                document.addEventListener('visibilitychange', function onIntroHide() {
+                    if (document.hidden && !fullDropDone) {
+                        clearTimeout(t2);
+                        clearTimeout(t3);
+                        clearTimeout(t4);
+                        clearTimeout(td);
+                    }
+                });
             }
 
             function trackAudio() {
-                if (!audio) return;
-                var cur = audio.currentTime;
-                var dur = audio.duration;
+                var cur = SoundController.getCurrentTime();
+                var dur = SoundController.getDuration();
 
                 // Pad 1: 0.0s -> TI
                 if (cur >= 0.0) revealHit1();
@@ -629,13 +936,14 @@
                 // Smooth exponential fade out across the final 5 seconds
                 if (dur && !isNaN(dur) && isFinite(dur) && dur > 0 && (dur - cur <= 5.0)) {
                     var left = Math.max(0, dur - cur);
-                    audio.volume = Math.min(1, Math.max(0, Math.pow(left / 5.0, 1.5)));
+                    var vol = Math.min(1, Math.max(0, Math.pow(left / 5.0, 1.5)));
+                    SoundController.setVolume(vol);
                 }
 
-                if (!audio.ended) {
+                if (!SoundController.isEnded() && (dur === 0 || cur < dur)) {
                     requestAnimationFrame(trackAudio);
                 } else {
-                    audio.volume = 0;
+                    SoundController.setVolume(0);
                 }
             }
 
@@ -646,15 +954,6 @@
                     e.preventDefault();
                     startExperience();
                 }, { passive: false });
-            }
-
-            // Preload and ended handler
-            if (audio) {
-                audio.addEventListener('ended', function () {
-                    audio.volume = 0;
-                    try { audio.pause(); } catch (e) {}
-                });
-                try { audio.load(); } catch (e) {}
             }
         })();
     </script>
@@ -1098,35 +1397,7 @@
         })();
     </script>
 
-    <!-- Mute Button Logic -->
-    <script>
-        (function () {
-            var muteBtn = document.getElementById('muteBtn');
-            var audio = document.getElementById('bgm');
-            if (!muteBtn || !audio) return;
-
-            function updateButton() {
-                var muted = audio.muted;
-                muteBtn.classList.toggle('is-muted', muted);
-                muteBtn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-                muteBtn.setAttribute('aria-label', muted ? 'Unmute audio' : 'Mute audio');
-            }
-
-            function toggleMute(e) {
-                e.preventDefault();
-                audio.muted = !audio.muted;
-                updateButton();
-            }
-
-            muteBtn.addEventListener('click', toggleMute);
-            muteBtn.addEventListener('touchend', toggleMute, { passive: false });
-
-            // Keep the icon in sync if audio is muted/unmuted from elsewhere
-            audio.addEventListener('volumechange', updateButton);
-
-            updateButton();
-        })();
-    </script>
+    <!-- Note: Mute button interactions are now centrally handled by SoundController -->
 
     <!-- VFX Engine Loader -->
     <script type="module">
