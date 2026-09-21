@@ -28,6 +28,7 @@
         }
 
        
+        
         html,
         body {
             width: 100%;
@@ -332,8 +333,11 @@
         <h2 class="target-coming-soon">Coming Soon</h2>
     </div>
 
-    <!-- Audio -->
-    <audio id="bgm" preload="auto" src="apalonbeats-suspenseful-566692.mp3"></audio>
+    <!-- Audio (Modern WebM Opus with MP3 fallback) -->
+    <audio id="bgm" preload="auto">
+        <source src="tiara-theme.webm" type="audio/webm">
+        <source src="tiara-theme.mp3" type="audio/mpeg">
+    </audio>
 
     <!-- Intro Overlay -->
     <div id="intro-overlay">
@@ -531,14 +535,16 @@
                 // Full drop: 12.85s (0:13) -> full page
                 if (cur >= 12.85) revealFullDrop();
 
-                // Fade out near end of track
-                if (dur && !isNaN(dur) && dur > 0 && (dur - cur <= 4.5)) {
-                    var left = dur - cur;
-                    audio.volume = Math.max(0, Math.pow(left / 4.5, 1.5));
+                // Smooth exponential fade out across the final 5 seconds
+                if (dur && !isNaN(dur) && isFinite(dur) && dur > 0 && (dur - cur <= 5.0)) {
+                    var left = Math.max(0, dur - cur);
+                    audio.volume = Math.min(1, Math.max(0, Math.pow(left / 5.0, 1.5)));
                 }
 
                 if (!audio.ended) {
                     requestAnimationFrame(trackAudio);
+                } else {
+                    audio.volume = 0;
                 }
             }
 
@@ -551,8 +557,12 @@
                 }, { passive: false });
             }
 
-            // Preload audio buffer immediately
+            // Preload and ended handler
             if (audio) {
+                audio.addEventListener('ended', function () {
+                    audio.volume = 0;
+                    try { audio.pause(); } catch (e) {}
+                });
                 try { audio.load(); } catch (e) {}
             }
         })();
