@@ -28,6 +28,7 @@
         }
 
        
+        
         html,
         body {
             width: 100%;
@@ -410,8 +411,11 @@
         <h2 class="target-coming-soon">Coming Soon</h2>
     </div>
 
-    <!-- Audio -->
-    <audio id="bgm" preload="auto" src="apalonbeats-suspenseful-566692.mp3"></audio>
+    <!-- Audio (Modern WebM Opus with MP3 fallback) -->
+    <audio id="bgm" preload="auto">
+        <source src="tiara-theme.webm" type="audio/webm">
+        <source src="tiara-theme.mp3" type="audio/mpeg">
+    </audio>
 
     <!-- Intro Overlay -->
     <div id="intro-overlay">
@@ -449,6 +453,7 @@
             text-shadow: 0 0 20px rgba(235, 28, 44, 0.5);
             animation: introGlow 2.5s infinite alternate ease-in-out;
             line-height: 1.5;
+            will-change: opacity;
         }
 
         .intro-icon {
@@ -459,8 +464,8 @@
         }
 
         @keyframes introGlow {
-            0% { opacity: 0.8; text-shadow: 0 0 15px rgba(235, 28, 44, 0.3); }
-            100% { opacity: 1; text-shadow: 0 0 30px rgba(235, 28, 44, 0.8), 0 0 60px rgba(235, 28, 44, 0.4); }
+            0% { opacity: 0.75; }
+            100% { opacity: 1; }
         }
 
         .intro-btn {
@@ -475,20 +480,29 @@
             border-radius: 4px;
             text-transform: uppercase;
             cursor: pointer;
-            box-shadow: 0 0 20px rgba(235, 28, 44, 0.3);
-            animation: introPulse 2s infinite ease-in-out;
-            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(235, 28, 44, 0.35);
+            animation: introPulse 2.2s infinite cubic-bezier(0.4, 0, 0.2, 1);
+            transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, color 0.25s ease;
+            will-change: transform, opacity;
+            transform: translate3d(0, 0, 0);
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
         }
 
         .intro-btn:hover, .intro-btn:active {
             background: #EB1C2C;
-            box-shadow: 0 0 35px rgba(235, 28, 44, 0.8);
-            transform: scale(1.05);
+            box-shadow: 0 0 35px rgba(235, 28, 44, 0.85);
         }
 
         @keyframes introPulse {
-            0%, 100% { transform: scale(1); opacity: 0.9; }
-            50% { transform: scale(1.04); opacity: 1; }
+            0%, 100% {
+                transform: scale3d(1, 1, 1);
+                opacity: 0.92;
+            }
+            50% {
+                transform: scale3d(1.05, 1.05, 1);
+                opacity: 1;
+            }
         }
     </style>
 
@@ -558,6 +572,8 @@
             function startExperience() {
                 if (started) return;
                 started = true;
+                window.experienceStarted = true;
+                window.dispatchEvent(new CustomEvent('tiara:start'));
 
                 // Immediately hide overlay without lag
                 overlay.style.pointerEvents = 'none';
@@ -609,14 +625,16 @@
                 // Full drop: 12.85s (0:13) -> full page
                 if (cur >= 12.85) revealFullDrop();
 
-                // Fade out near end of track
-                if (dur && !isNaN(dur) && dur > 0 && (dur - cur <= 4.5)) {
-                    var left = dur - cur;
-                    audio.volume = Math.max(0, Math.pow(left / 4.5, 1.5));
+                // Smooth exponential fade out across the final 5 seconds
+                if (dur && !isNaN(dur) && isFinite(dur) && dur > 0 && (dur - cur <= 5.0)) {
+                    var left = Math.max(0, dur - cur);
+                    audio.volume = Math.min(1, Math.max(0, Math.pow(left / 5.0, 1.5)));
                 }
 
                 if (!audio.ended) {
                     requestAnimationFrame(trackAudio);
+                } else {
+                    audio.volume = 0;
                 }
             }
 
@@ -629,8 +647,12 @@
                 }, { passive: false });
             }
 
-            // Preload audio buffer immediately
+            // Preload and ended handler
             if (audio) {
+                audio.addEventListener('ended', function () {
+                    audio.volume = 0;
+                    try { audio.pause(); } catch (e) {}
+                });
                 try { audio.load(); } catch (e) {}
             }
         })();
@@ -771,7 +793,11 @@
                 requestAnimationFrame(animate);
             }
 
-            animate();
+            if (window.experienceStarted || !document.getElementById('intro-overlay')) {
+                animate();
+            } else {
+                window.addEventListener('tiara:start', animate, { once: true });
+            }
         })();
     </script>
 
@@ -903,8 +929,12 @@
                 requestAnimationFrame(draw);
             }
 
-            // Start animation loop immediately
-            draw();
+            // Start animation loop when experience starts
+            if (window.experienceStarted || !document.getElementById('intro-overlay')) {
+                draw();
+            } else {
+                window.addEventListener('tiara:start', draw, { once: true });
+            }
         })();
     </script>
 
@@ -1041,9 +1071,16 @@
                 requestAnimationFrame(tick);
             }
 
-            // Build initial grid wall & start loop
+            // Build initial grid wall & start loop when experience starts
             buildWall();
-            requestAnimationFrame(tick);
+            if (window.experienceStarted || !document.getElementById('intro-overlay')) {
+                requestAnimationFrame(tick);
+            } else {
+                window.addEventListener('tiara:start', () => {
+                    lastTs = performance.now();
+                    requestAnimationFrame(tick);
+                }, { once: true });
+            }
 
             // Handle Resize & Device Orientation change with debouncing
             let resizeTimer = null;
